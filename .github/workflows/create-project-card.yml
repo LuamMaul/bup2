@@ -8,24 +8,14 @@ jobs:
   add_to_project:
     runs-on: ubuntu-latest
     steps:
-      - name: Criar draft issue e mover para coluna
+      - name: Criar draft issue no Project v2 pessoal
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
-          PROJECT_ID: PVT_abc1234567890    # seu project ID aqui
-          COLUMN_ID: PVTColumn_1234567890  # o ID da coluna
+          PROJECT_ID: PVT_kwHOA0czfM4A8xv2
           TITLE: ${{ github.event.client_payload.title }}
           DESCRIPTION: ${{ github.event.client_payload.description }}
         run: |
-          response=$(curl -s -X POST https://api.github.com/graphql \
-            -H "Authorization: bearer $GH_TOKEN" \
-            -H "Content-Type: application/json" \
-            -d "{\"query\": \"mutation { addProjectV2DraftIssue(input: {projectId: \\\"$PROJECT_ID\\\", title: \\\"$TITLE\\\", body: \\\"$DESCRIPTION\\\"}) { projectItem { id } } }\"}")
-
-          item_id=$(echo "$response" | jq -r '.data.addProjectV2DraftIssue.projectItem.id')
-
           curl -s -X POST https://api.github.com/graphql \
             -H "Authorization: bearer $GH_TOKEN" \
             -H "Content-Type: application/json" \
-            -d "{\"query\": \"mutation { moveProjectV2ItemToColumn(input: {itemId: \\\"$item_id\\\", columnId: \\\"$COLUMN_ID\\\"}) { item { id } } }\"}"
-EOF
-
+            -d "{\"query\": \"mutation { addProjectV2DraftIssue(input: {projectId: \\\"$PROJECT_ID\\\", title: \\\"$TITLE\\\", body: \\\"$DESCRIPTION\\\"}) { projectItem { id } } }\"}"

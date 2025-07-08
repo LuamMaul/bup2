@@ -8,14 +8,21 @@ jobs:
   add_to_project:
     runs-on: ubuntu-latest
     steps:
-      - name: Criar draft issue no Project v2 pessoal
-        env:
-          GH_TOKEN: ${{ secrets.GH_PAT }}
-          PROJECT_ID: PVT_kwHOA0czfM4A8xv2
-          TITLE: ${{ github.event.client_payload.title }}
-          DESCRIPTION: ${{ github.event.client_payload.description }}
-        run: |
-          curl -s -X POST https://api.github.com/graphql \
-            -H "Authorization: bearer $GH_TOKEN" \
-            -H "Content-Type: application/json" \
-            -d "{\"query\": \"mutation { addProjectV2DraftIssue(input: {projectId: \\\"$PROJECT_ID\\\", title: \\\"$TITLE\\\", body: \\\"$DESCRIPTION\\\"}) { projectItem { id } } }\"}"
+      - name: Criar card com título e descrição
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const payload = context.payload.client_payload;
+            const ticketId = payload.ticket_id;
+            const ticketSubject = payload.ticket_subject;
+
+            const title = `${ticketId} - ${ticketSubject}`;
+            const ticketLink = `https://SEU_DOMINIO.freshdesk.com/helpdesk/tickets/${ticketId}`;
+            const metricsLink = "https://docs.google.com/spreadsheets/d/1i_ceiljyTheYwYe5XJLmJn2uPJHy4kQVplLpbSDmWEs/edit?gid=1998271206#gid=1998271206";
+
+            const description = `[Ticket](${ticketLink})\n\n[Planilha de Métricas](${metricsLink})`;
+
+            await github.projects.createCard({
+              column_id: SEU_ID_DA_COLUNA,
+              note: `**${title}**\n\n${description}`
+            });

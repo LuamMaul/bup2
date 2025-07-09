@@ -1,0 +1,101 @@
+name: Atualizar Substatus no GitHub Project
+
+on:
+  repository_dispatch:
+    types: [update_card_status]
+
+jobs:
+  atualizar_substatus:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Atualizar substatus no card existente
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+          PROJECT_ID: PVT_kwHOA0czfM4A8xv2
+          TICKET_ID: ${{ github.event.client_payload.ticket_id }}
+          TICKET_STATUS: ${{ github.event.client_payload.status }}
+        run: |
+          set -e
+
+          # Substitua com os IDs reais
+          SUBSTATUS_FIELD_ID="PVTSSF_lAHOA0czfM4A8xv2zgwrN44"
+
+          # Limpa status
+          STATUS_CLEAN=$(echo "$TICKET_STATUS" | xargs)
+
+          echo "🔁 Status recebido: '$STATUS_CLEAN'"
+
+          # Mapa: Status Freshdesk → OptionID GitHub
+          case "$STATUS_CLEAN" in
+            "Aberto") OPTION_ID="6c6483d2" ;;
+            "Pendente") OPTION_ID="f784b110" ;;
+            "Em desenvolvimento") OPTION_ID="7515a9f1" ;;
+            "Acesso remoto") OPTION_ID="817d0097" ;;
+            "Aguardando integração") OPTION_ID="db339eb2" ;;
+            "Aguardando nova versão") OPTION_ID="fa016d40" ;;
+            "Aguardando terceiros") OPTION_ID="12aa78ac" ;;
+            "Resolvido") OPTION_ID="1b154e61" ;;
+            "Fechado") OPTION_ID="d894a32b" ;;
+            *) OPTION_ID="" ;;
+          esac
+
+          if [ -z "$OPTION_ID" ]; then
+            echo "⚠️ Status '$STATUS_CLEAN' não mapeado, saindo."
+            exit 0
+          fi
+
+          echo "🔎 Buscando issues para o ticket #$TICKET_ID..."
+
+          # Busca todas issues e filtra pela que tem o ID do ticket no título
+          ISSUE_DATA=$(gh issue list --limit 100 --json title,url,number | jq -r \
+            --arg ticket_id "$TICKET_ID" '.[] | select(.title | startswith($ticket_id + " - "))')
+
+          ISSUE_NUMBER=$(echo "$ISSUE_DATA" | jq -r '.number')
+
+          if [ -z "$ISSUE_NUMBER" ]; then
+            echo "❌ Nenhuma issue encontrada para o ticket."
+            exit 1
+          fi
+
+          echo "📌 Issue encontrada: #$ISSUE_NUMBER"
+
+          ISSUE_ID=$(gh api graphql -f query="
+          {
+            repository(owner: \"LuamMaul\", name: \"bup2\") {
+              issue(number: $ISSUE_NUMBER) { id }
+            }
+          }" | jq -r '.data.repository.issue.id')
+
+          echo "🔎 Buscando item do projeto..."
+
+          ITEM_ID=$(gh api graphql -f query="
+          {
+            node(id: \"$PROJECT_ID\") {
+              ... on ProjectV2 {
+                items(first: 100) {
+                  nodes {
+                    content {
+                      ... on Issue { id number }
+                    }
+                    id
+                  }
+                }
+              }
+            }
+          }" | jq -r --arg issue_id "$ISSUE_ID" '.data.node.items.nodes[] | select(.content.id == $issue_id) | .id')
+
+          echo "📝 Atualizando Substatus..."
+
+          MUTATION_SUBSTATUS=$(jq -n \
+            --arg projectId "$PROJECT_ID" \
+            --arg itemId "$ITEM_ID" \
+            --arg fieldId "$SUBSTATUS_FIELD_ID" \
+            --arg optionId "$OPTION_ID" \
+            '{ query: "mutation UpdateSubstatus($projectId:ID!,$itemId:ID!,$fieldId:ID!,$optionId:String!){ updateProjectV2ItemFieldValue(input:{ projectId:$projectId, itemId:$itemId, fieldId:$fieldId, value:{ singleSelectOptionId:$optionId }}){ projectV2Item{ id }}}", variables: { projectId: $projectId, itemId: $itemId, fieldId: $fieldId, optionId: $optionId } }')
+
+          curl -s -X POST https://api.github.com/graphql \
+            -H "Authorization: bearer $GH_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$MUTATION_SUBSTATUS"
+
+          echo "✅ Substatus atualizado!"

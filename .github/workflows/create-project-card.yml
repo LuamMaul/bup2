@@ -74,7 +74,7 @@ jobs:
                 updateProjectV2ItemFieldValue(input: {
                   projectId: \\\"$PROJECT_ID\\\",
                   itemId: \\\"$ITEM_ID\\\",
-                  fieldId: \\\"PVT_FIELD_PRIORIDADE\\\",
+                  fieldId: \\\"PVTSSF_lAHOA0czfM4A8xv2zgwrN40\\\",
                   value: { singleSelectOptionId: \\\"$PRIORITY_OPTION_ID\\\" }
                 }) {
                   projectV2Item { id }

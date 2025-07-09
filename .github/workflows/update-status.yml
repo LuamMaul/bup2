@@ -8,6 +8,8 @@ jobs:
   atualizar_substatus:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout do repositório
+          uses: actions/checkout@v4
       - name: Atualizar substatus no card existente
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
@@ -27,15 +29,16 @@ jobs:
 
           # Mapa: Status Freshdesk → OptionID GitHub
           case "$STATUS_CLEAN" in
-            "Aberto") OPTION_ID="6c6483d2" ;;
-            "Pendente") OPTION_ID="f784b110" ;;
+            "Open") OPTION_ID="6c6483d2" ;;
+            "Pending") OPTION_ID="f784b110" ;;
+            "Em andamento") OPTION_ID="756cd9fa" ;;
             "Em desenvolvimento") OPTION_ID="7515a9f1" ;;
             "Acesso remoto") OPTION_ID="817d0097" ;;
             "Aguardando integração") OPTION_ID="db339eb2" ;;
             "Aguardando nova versão") OPTION_ID="fa016d40" ;;
             "Aguardando terceiros") OPTION_ID="12aa78ac" ;;
-            "Resolvido") OPTION_ID="1b154e61" ;;
-            "Fechado") OPTION_ID="d894a32b" ;;
+            "Resolved") OPTION_ID="1b154e61" ;;
+            "Closed") OPTION_ID="d894a32b" ;;
             *) OPTION_ID="" ;;
           esac
 

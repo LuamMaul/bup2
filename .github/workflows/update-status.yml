@@ -12,23 +12,80 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
           PROJECT_ID: PVT_kwHOA0czfM4A8xv2
-          REPO_OWNER: LuamMaul
-          REPO_NAME: bup2
           TICKET_ID: ${{ github.event.client_payload.ticket_id }}
           TICKET_SUBJECT: ${{ github.event.client_payload.ticket_subject }}
           TICKET_STATUS: ${{ github.event.client_payload.status }}
+          REPO_OWNER: LuamMaul
+          REPO_NAME: bup2
         run: |
           set -e
 
-          # Substitua com os IDs reais
-          SUBSTATUS_FIELD_ID="PVTSSF_lAHOA0czfM4A8xv2zgwrN44"
+          TITLE="$TICKET_ID - $TICKET_SUBJECT"
+          echo "🔁 Status recebido: '$TICKET_STATUS'"
+          echo "🎯 Buscando issue com título exato: $TITLE"
 
-          # Limpa status
+          # 🔎 Monta a query segura com jq
+          SEARCH_QUERY="repo:$REPO_OWNER/$REPO_NAME \"$TITLE\" in:title type:issue"
+          GRAPHQL_QUERY=$(jq -n --arg q "$SEARCH_QUERY" '
+          {
+            query: "query ($q: String!) { search(query: $q, type: ISSUE, first: 1) { nodes { ... on Issue { id number title } } } }",
+            variables: { q: $q }
+          }')
+
+          SEARCH_RESULT=$(curl -s -H "Authorization: bearer $GH_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$GRAPHQL_QUERY" https://api.github.com/graphql)
+
+          echo "📦 Resposta da busca:"
+          echo "$SEARCH_RESULT"
+
+          ISSUE_NODE=$(echo "$SEARCH_RESULT" | jq -c --arg title "$TITLE" '.data.search.nodes[] | select(.title == $title)')
+
+          if [ -z "$ISSUE_NODE" ]; then
+            echo "❌ Nenhuma issue encontrada com título exatamente igual a: '$TITLE'"
+            exit 1
+          fi
+
+          ISSUE_ID=$(echo "$ISSUE_NODE" | jq -r '.id')
+          ISSUE_NUMBER=$(echo "$ISSUE_NODE" | jq -r '.number')
+          echo "✅ Issue encontrada: #$ISSUE_NUMBER - $TITLE"
+
+          echo "📎 Buscando item (card) no projeto..."
+          ITEM_QUERY=$(jq -n --arg projectId "$PROJECT_ID" '
+          {
+            query: "query($projectId: ID!) {
+              node(id: $projectId) {
+                ... on ProjectV2 {
+                  items(first: 100) {
+                    nodes {
+                      id
+                      content { ... on Issue { id number } }
+                    }
+                  }
+                }
+              }
+            }",
+            variables: { projectId: $projectId }
+          }')
+
+          ITEM_RESULT=$(curl -s -H "Authorization: bearer $GH_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$ITEM_QUERY" https://api.github.com/graphql)
+
+          ITEM_ID=$(echo "$ITEM_RESULT" | jq -r --arg issueId "$ISSUE_ID" '.data.node.items.nodes[] | select(.content.id == $issueId) | .id')
+
+          if [ -z "$ITEM_ID" ]; then
+            echo "❌ Item do projeto não encontrado para a issue."
+            exit 1
+          fi
+
+          echo "📌 ITEM_ID: $ITEM_ID"
+
+          echo "🎯 Interpretando substatus..."
+
           STATUS_CLEAN=$(echo "$TICKET_STATUS" | xargs)
 
-          echo "🔁 Status recebido: '$STATUS_CLEAN'"
-
-          # Mapa: Status Freshdesk → OptionID GitHub
+          # 👇 MAPA: Status do Freshdesk → ID da opção no campo 'Substatus' do GitHub
           case "$STATUS_CLEAN" in
             "Open") OPTION_ID="6c6483d2" ;;
             "Pending") OPTION_ID="f784b110" ;;
@@ -44,82 +101,42 @@ jobs:
           esac
 
           if [ -z "$OPTION_ID" ]; then
-            echo "⚠️ Status '$STATUS_CLEAN' não mapeado, saindo."
+            echo "⚠️ Status '$STATUS_CLEAN' não mapeado para nenhuma opção de Substatus."
             exit 0
           fi
 
-          TITLE="$TICKET_ID - $TICKET_SUBJECT"
+          # ID do campo Substatus no seu projeto
+          FIELD_ID="PVTSSF_lAHOA0czfM4A8xv2SUBXYZ"  # ← substitua pelo real
 
-          echo "🎯 Buscando issue com título exato: $TITLE"
+          echo "🏷️ Aplicando substatus no card..."
 
-          SEARCH_QUERY="repo:$REPO_OWNER/$REPO_NAME \"$TITLE\" in:title type:issue"
-
-          SEARCH_RESULT=$(curl -s -H "Authorization: bearer $GH_TOKEN" \
-            -H "Content-Type: application/json" \
-            -d "{\"query\": \"query {
-              search(query: \\\"$SEARCH_QUERY\\\", type: ISSUE, first: 1) {
-                nodes {
-                  ... on Issue {
-                    id
-                    number
-                    title
-                  }
-                }
-              }
-            }\"}" https://api.github.com/graphql)
-
-          echo "📦 Resposta da busca:"
-          echo "$SEARCH_RESULT"
-
-          ISSUE_NODE=$(echo "$SEARCH_RESULT" | jq -c --arg title "$TITLE" '.data.search.nodes[] | select(.title == $title)')
-
-          if [ -z "$ISSUE_NODE" ]; then
-            echo "❌ Nenhuma issue encontrada com título exatamente igual a: '$TITLE'"
-            exit 1
-          fi
-
-          ISSUE_ID=$(echo "$ISSUE_NODE" | jq -r '.id')
-          ISSUE_NUMBER=$(echo "$ISSUE_NODE" | jq -r '.number')
-          
-          echo "✅ Issue encontrada: #$ISSUE_NUMBER - $TITLE"
-
-          ISSUE_ID=$(gh api graphql -f query="
-          {
-            repository(owner: \"LuamMaul\", name: \"bup2\") {
-              issue(number: $ISSUE_NUMBER) { id }
-            }
-          }" | jq -r '.data.repository.issue.id')
-
-          echo "🔎 Buscando item do projeto..."
-
-          ITEM_ID=$(gh api graphql -f query="
-          {
-            node(id: \"$PROJECT_ID\") {
-              ... on ProjectV2 {
-                items(first: 100) {
-                  nodes {
-                    content {
-                      ... on Issue { id number }
-                    }
-                    id
-                  }
-                }
-              }
-            }
-          }" | jq -r --arg issue_id "$ISSUE_ID" '.data.node.items.nodes[] | select(.content.id == $issue_id) | .id')
-
-          echo "📝 Atualizando Substatus..."
-
-          MUTATION_SUBSTATUS=$(jq -n \
+          UPDATE_MUTATION=$(jq -n \
             --arg projectId "$PROJECT_ID" \
             --arg itemId "$ITEM_ID" \
-            --arg fieldId "$SUBSTATUS_FIELD_ID" \
-            --arg optionId "$OPTION_ID" \
-            '{ query: "mutation UpdateSubstatus($projectId:ID!,$itemId:ID!,$fieldId:ID!,$optionId:String!){ updateProjectV2ItemFieldValue(input:{ projectId:$projectId, itemId:$itemId, fieldId:$fieldId, value:{ singleSelectOptionId:$optionId }}){ projectV2Item{ id }}}", variables: { projectId: $projectId, itemId: $itemId, fieldId: $fieldId, optionId: $optionId } }')
+            --arg fieldId "$FIELD_ID" \
+            --arg optionId "$OPTION_ID" '
+            {
+              query: "mutation UpdateField($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
+                updateProjectV2ItemFieldValue(input: {
+                  projectId: $projectId,
+                  itemId: $itemId,
+                  fieldId: $fieldId,
+                  value: { singleSelectOptionId: $optionId }
+                }) {
+                  projectV2Item { id }
+                }
+              }",
+              variables: {
+                projectId: $projectId,
+                itemId: $itemId,
+                fieldId: $fieldId,
+                optionId: $optionId
+              }
+            }')
 
           curl -s -X POST https://api.github.com/graphql \
             -H "Authorization: bearer $GH_TOKEN" \
             -H "Content-Type: application/json" \
-            -d "$MUTATION_SUBSTATUS"
+            -d "$UPDATE_MUTATION"
 
-          echo "✅ Substatus atualizado!"
+          echo "✅ Substatus atualizado com sucesso!"

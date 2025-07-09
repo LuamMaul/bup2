@@ -8,6 +8,12 @@ jobs:
   criar_issue:
     runs-on: ubuntu-latest
     steps:
+      - name: Autenticar com GitHub App
+        id: auth
+        uses: tibdex/github-app-token@v1
+        with:
+          app_id: ${{ steps.auth.outputs.token }}
+          private_key: ${{ secrets.GH_APP_PRIVATE_KEY }}
       - name: Criar issue e adicionar ao projeto
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}

@@ -28,6 +28,8 @@ jobs:
           TICKET_LINK="https://esusaps.freshdesk.com/helpdesk/tickets/$TICKET_ID"
           PLANILHA_LINK="https://docs.google.com/spreadsheets/d/1i_ceiljyTheYwYe5XJLmJn2uPJHy4kQVplLpbSDmWEs/edit?gid=1998271206#gid=1998271206"
           DESCRIPTION="[Ticket]($TICKET_LINK)\n\n[Planilha de Métricas]($PLANILHA_LINK)"
+          TIPO_FIELD_ID="PVTSSF_lAHOA0czfM4A8xv2zgxJsvQ"
+          TIPO_OPTION_ID="ffb9a1e9"
 
           echo "🔎 Buscando ID do repositório..."
 
@@ -86,3 +88,16 @@ jobs:
           else
             echo "⚠️ PRIORITY '$PRIORITY' não corresponde a nenhuma opção conhecida."
           fi
+          echo "🗂️ Aplicando campo 'Tipo' = 'Ticket'..."
+
+          MUTATION_TIPO=$(jq -n \
+            --arg projectId "$PROJECT_ID" \
+            --arg itemId "$ITEM_ID" \
+            --arg fieldId "$TIPO_FIELD_ID" \
+            --arg optionId "$TIPO_OPTION_ID" \
+            '{ query: "mutation UpdateTipo($projectId:ID!,$itemId:ID!,$fieldId:ID!,$optionId:String!){ updateProjectV2ItemFieldValue(input:{ projectId:$projectId, itemId:$itemId, fieldId:$fieldId, value:{ singleSelectOptionId:$optionId }}){ projectV2Item{ id }}}", variables: { projectId: $projectId, itemId: $itemId, fieldId: $fieldId, optionId: $optionId } }')
+
+          curl -s -X POST https://api.github.com/graphql \
+            -H "Authorization: bearer $GH_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$MUTATION_TIPO"

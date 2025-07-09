@@ -12,6 +12,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
           PROJECT_ID: PVT_kwHOA0czfM4A8xv2
+          REPO_OWNER: LuamMaul
+          REPO_NAME: bup2
           TICKET_ID: ${{ github.event.client_payload.ticket_id }}
           TICKET_SUBJECT: ${{ github.event.client_payload.ticket_subject }}
           TICKET_STATUS: ${{ github.event.client_payload.status }}

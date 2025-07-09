@@ -1,26 +1,64 @@
-name: Criar card no Project v2 pessoal a partir do Freshdesk
+name: Criar issue e adicionar ao Project v2
 
 on:
   repository_dispatch:
     types: [create_card]
 
 jobs:
-  add_to_project:
+  criar_issue:
     runs-on: ubuntu-latest
     steps:
-      - name: Criar draft issue no Project v2 pessoal
+      - name: Criar issue e adicionar ao projeto
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
           PROJECT_ID: PVT_kwHOA0czfM4A8xv2
+          REPO_OWNER: LuamMaul
+          REPO_NAME: bup2
           TICKET_ID: ${{ github.event.client_payload.ticket_id }}
           TICKET_SUBJECT: ${{ github.event.client_payload.ticket_subject }}
         run: |
+          # Montar título e descrição
           TITLE="$TICKET_ID - $TICKET_SUBJECT"
           TICKET_LINK="https://SEUDOMINIO.freshdesk.com/helpdesk/tickets/$TICKET_ID"
           PLANILHA_LINK="https://docs.google.com/spreadsheets/d/1i_ceiljyTheYwYe5XJLmJn2uPJHy4kQVplLpbSDmWEs/edit?gid=1998271206#gid=1998271206"
-          DESCRIPTION="[Ticket]($TICKET_LINK)%0A%0A[Planilha de Métricas]($PLANILHA_LINK)"
+          DESCRIPTION="[Ticket]($TICKET_LINK)\n\n[Planilha de Métricas]($PLANILHA_LINK)"
+
+          # Obter ID do repositório
+          REPO_QUERY="{ repository(owner: \\\"$REPO_OWNER\\\", name: \\\"$REPO_NAME\\\") { id } }"
+          REPO_ID=$(curl -s -X POST https://api.github.com/graphql \
+            -H "Authorization: bearer $GH_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"query\": \"query $REPO_QUERY\"}" | jq -r '.data.repository.id')
+
+          # Criar issue
+          CREATE_ISSUE_MUTATION="mutation {
+            createIssue(input: {
+              repositoryId: \\\"$REPO_ID\\\",
+              title: \\\"$TITLE\\\",
+              body: \\\"$DESCRIPTION\\\"
+            }) {
+              issue { id number url }
+            }
+          }"
+
+          ISSUE_RESPONSE=$(curl -s -X POST https://api.github.com/graphql \
+            -H "Authorization: bearer $GH_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"query\": \"$CREATE_ISSUE_MUTATION\"}")
+
+          ISSUE_ID=$(echo "$ISSUE_RESPONSE" | jq -r '.data.createIssue.issue.id')
+
+          # Adicionar a issue ao projeto
+          ADD_TO_PROJECT_MUTATION="mutation {
+            addProjectV2ItemById(input: {
+              projectId: \\\"$PROJECT_ID\\\",
+              contentId: \\\"$ISSUE_ID\\\"
+            }) {
+              item { id }
+            }
+          }"
 
           curl -s -X POST https://api.github.com/graphql \
             -H "Authorization: bearer $GH_TOKEN" \
             -H "Content-Type: application/json" \
-            -d "{\"query\": \"mutation { addProjectV2DraftIssue(input: {projectId: \\\"$PROJECT_ID\\\", title: \\\"$TITLE\\\", body: \\\"$DESCRIPTION\\\"}) { projectItem { id } } }\"}"
+            -d "{\"query\": \"$ADD_TO_PROJECT_MUTATION\"}"

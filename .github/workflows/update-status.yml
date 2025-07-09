@@ -13,6 +13,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_PAT }}
           PROJECT_ID: PVT_kwHOA0czfM4A8xv2
           TICKET_ID: ${{ github.event.client_payload.ticket_id }}
+          TICKET_SUBJECT: ${{ github.event.client_payload.ticket_subject }}
           TICKET_STATUS: ${{ github.event.client_payload.status }}
         run: |
           set -e
@@ -45,19 +46,16 @@ jobs:
             exit 0
           fi
 
-          echo "🔎 Buscando issues para o ticket #$TICKET_ID..."
+          TITLE="$TICKET_ID - $TICKET_SUBJECT"
+          echo "🎯 Buscando issue com título exato: $TITLE"
 
-          # 🧠 Busca a issue que começa com o ticket_id no título
-          echo "🔎 Procurando issue com título que começa com '$TICKET_ID -'..."
-
-          SEARCH_QUERY="repo:$REPO_OWNER/$REPO_NAME $TICKET_ID - in:title type:issue"
-
+          # Substitui a busca por uma query de correspondência exata:
           SEARCH_RESULT=$(curl -s -H "Authorization: bearer $GH_TOKEN" \
             -H "Content-Type: application/json" \
             -d "{\"query\": \"query {
-              search(query: \\\"$SEARCH_QUERY\\\", type: ISSUE, first: 1) {
-                nodes {
-                  ... on Issue {
+              repository(owner: \\\"$REPO_OWNER\\\", name: \\\"$REPO_NAME\\\") {
+                issues(first: 10, filterBy: {states: OPEN}, orderBy: {field: CREATED_AT, direction: DESC}) {
+                  nodes {
                     id
                     number
                     title
@@ -66,16 +64,17 @@ jobs:
               }
             }\"}" https://api.github.com/graphql)
           
-          ISSUE_ID=$(echo "$SEARCH_RESULT" | jq -r '.data.search.nodes[0].id')
-          ISSUE_NUMBER=$(echo "$SEARCH_RESULT" | jq -r '.data.search.nodes[0].number')
-          ISSUE_TITLE=$(echo "$SEARCH_RESULT" | jq -r '.data.search.nodes[0].title')
+          ISSUE_NODE=$(echo "$SEARCH_RESULT" | jq -c --arg title "$TITLE" '.data.repository.issues.nodes[] | select(.title == $title)')
 
-          if [ "$ISSUE_ID" = "null" ] || [ -z "$ISSUE_ID" ]; then
-            echo "❌ Nenhuma issue encontrada com título iniciando em '$TICKET_ID -'"
+          if [ -z "$ISSUE_NODE" ]; then
+            echo "❌ Nenhuma issue encontrada com título exatamente igual a: '$TITLE'"
             exit 1
           fi
 
-          echo "📌 Issue encontrada: #$ISSUE_NUMBER - $ISSUE_TITLE"
+          ISSUE_ID=$(echo "$ISSUE_NODE" | jq -r '.id')
+          ISSUE_NUMBER=$(echo "$ISSUE_NODE" | jq -r '.number')
+
+          echo "📌 Issue encontrada: #$ISSUE_NUMBER - $TITLE"
 
           ISSUE_ID=$(gh api graphql -f query="
           {

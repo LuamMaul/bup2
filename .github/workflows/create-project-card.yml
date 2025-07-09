@@ -46,7 +46,40 @@ jobs:
 
           echo "📎 Adicionando issue ao projeto..."
 
-          curl -s -X POST https://api.github.com/graphql \
+          ADD_RESPONSE=$(curl -s -X POST https://api.github.com/graphql \
             -H "Authorization: bearer $GH_TOKEN" \
             -H "Content-Type: application/json" \
-            -d "{\"query\": \"mutation { addProjectV2ItemById(input: {projectId: \\\"$PROJECT_ID\\\", contentId: \\\"$ISSUE_ID\\\"}) { item { id } } }\"}"
+            -d "{\"query\": \"mutation { addProjectV2ItemById(input: {projectId: \\\"$PROJECT_ID\\\", contentId: \\\"$ISSUE_ID\\\"}) { item { id } } }\"}")
+
+          ITEM_ID=$(echo "$ADD_RESPONSE" | jq -r '.data.addProjectV2ItemById.item.id')
+
+          echo "🎯 Interpretando prioridade..."
+
+          # MAPA: PRIORITY (1 a 4) → ID da opção no campo do GitHub Project
+          case "$PRIORITY" in
+            1) PRIORITY_OPTION_ID="57621d1e" ;;
+            2) PRIORITY_OPTION_ID="da944a9c" ;;
+            3) PRIORITY_OPTION_ID="0a877460" ;;
+            4) PRIORITY_OPTION_ID="79628723" ;;
+            *) PRIORITY_OPTION_ID="" ;;
+          esac
+
+          if [ -n "$PRIORITY_OPTION_ID" ]; then
+            echo "🏷️ Aplicando prioridade no card..."
+
+            curl -s -X POST https://api.github.com/graphql \
+              -H "Authorization: bearer $GH_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "{\"query\": \"mutation {
+                updateProjectV2ItemFieldValue(input: {
+                  projectId: \\\"$PROJECT_ID\\\",
+                  itemId: \\\"$ITEM_ID\\\",
+                  fieldId: \\\"PVT_FIELD_PRIORIDADE\\\",
+                  value: { singleSelectOptionId: \\\"$PRIORITY_OPTION_ID\\\" }
+                }) {
+                  projectV2Item { id }
+                }
+              }\"}"
+          else
+            echo "⚠️ Prioridade '$PRIORITY' não corresponde a nenhuma opção conhecida."
+          fi

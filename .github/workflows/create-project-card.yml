@@ -16,14 +16,18 @@ jobs:
           REPO_NAME: bup2
           TICKET_ID: ${{ github.event.client_payload.ticket_id }}
           TICKET_SUBJECT: ${{ github.event.client_payload.ticket_subject }}
+          PRIORITY_RAW: ${{ github.event.client_payload.priority }}
         run: |
           set -e
+
+          # 🔹 LIMPA PRIORIDADE
+          PRIORITY=$(echo "$PRIORITY_RAW" | tr -d '"' | xargs)
+          echo "📌 PRIORITY recebido e limpo: '$PRIORITY'"
 
           TITLE="$TICKET_ID - $TICKET_SUBJECT"
           TICKET_LINK="https://esusaps.freshdesk.com/helpdesk/tickets/$TICKET_ID"
           PLANILHA_LINK="https://docs.google.com/spreadsheets/d/1i_ceiljyTheYwYe5XJLmJn2uPJHy4kQVplLpbSDmWEs/edit?gid=1998271206#gid=1998271206"
           DESCRIPTION="[Ticket]($TICKET_LINK)\n\n[Planilha de Métricas]($PLANILHA_LINK)"
-          PRIORITY="${{ github.event.client_payload.priority }}"
 
           echo "🔎 Buscando ID do repositório..."
 
@@ -53,13 +57,12 @@ jobs:
             -d "{\"query\": \"mutation { addProjectV2ItemById(input: {projectId: \\\"$PROJECT_ID\\\", contentId: \\\"$ISSUE_ID\\\"}) { item { id } } }\"}")
 
           ITEM_ID=$(echo "$ADD_RESPONSE" | jq -r '.data.addProjectV2ItemById.item.id')
-          
-          echo "📌 PRIORITY recebido e limpo: '$PRIORITY'"
+
           echo "🎯 Interpretando prioridade..."
 
-          # MAPA: PRIORITY (1 a 4) → ID da opção no campo do GitHub Project
+          # MAPA: PRIORITY textual (em inglês) → ID da opção no campo do GitHub Project
           case "$PRIORITY" in
-            "Low") PRIORITY_OPTION_ID="57621d1e" ;;
+            "Low") PRIORITY_OPTION_ID="57621d1e" ;;     # Ajuste conforme seu campo real
             "Medium") PRIORITY_OPTION_ID="da944a9c" ;;
             "High") PRIORITY_OPTION_ID="0a877460" ;;
             "Urgent") PRIORITY_OPTION_ID="79628723" ;;
@@ -69,19 +72,17 @@ jobs:
           if [ -n "$PRIORITY_OPTION_ID" ]; then
             echo "🏷️ Aplicando prioridade no card..."
 
+            MUTATION=$(jq -n \
+              --arg projectId "$PROJECT_ID" \
+              --arg itemId "$ITEM_ID" \
+              --arg fieldId "PVTSSF_lAHOA0czfM4A8xv2zgwrN40" \
+              --arg optionId "$PRIORITY_OPTION_ID" \
+              '{ query: "mutation UpdatePriority($projectId:ID!,$itemId:ID!,$fieldId:ID!,$optionId:String!){ updateProjectV2ItemFieldValue(input:{ projectId:$projectId, itemId:$itemId, fieldId:$fieldId, value:{ singleSelectOptionId:$optionId }}){ projectV2Item{ id }}}", variables: { projectId: $projectId, itemId: $itemId, fieldId: $fieldId, optionId: $optionId } }')
+
             curl -s -X POST https://api.github.com/graphql \
               -H "Authorization: bearer $GH_TOKEN" \
               -H "Content-Type: application/json" \
-              -d "{\"query\": \"mutation {
-                updateProjectV2ItemFieldValue(input: {
-                  projectId: \\\"$PROJECT_ID\\\",
-                  itemId: \\\"$ITEM_ID\\\",
-                  fieldId: \\\"PVTSSF_lAHOA0czfM4A8xv2zgwrN40\\\",
-                  value: { singleSelectOptionId: \\\"$PRIORITY_OPTION_ID\\\" }
-                }) {
-                  projectV2Item { id }
-                }
-              }\"}"
+              -d "$MUTATION"
           else
-            echo "⚠️ Prioridade '$PRIORITY' não corresponde a nenhuma opção conhecida."
+            echo "⚠️ PRIORITY '$PRIORITY' não corresponde a nenhuma opção conhecida."
           fi

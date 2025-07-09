@@ -8,8 +8,6 @@ jobs:
   atualizar_substatus:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout do repositório
-          uses: actions/checkout@v4
       - name: Atualizar substatus no card existente
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
@@ -49,18 +47,35 @@ jobs:
 
           echo "🔎 Buscando issues para o ticket #$TICKET_ID..."
 
-          # Busca todas issues e filtra pela que tem o ID do ticket no título
-          ISSUE_DATA=$(gh issue list --limit 100 --json title,url,number | jq -r \
-            --arg ticket_id "$TICKET_ID" '.[] | select(.title | startswith($ticket_id + " - "))')
+          # 🧠 Busca a issue que começa com o ticket_id no título
+          echo "🔎 Procurando issue com título que começa com '$TICKET_ID -'..."
 
-          ISSUE_NUMBER=$(echo "$ISSUE_DATA" | jq -r '.number')
+          SEARCH_QUERY="repo:$REPO_OWNER/$REPO_NAME $TICKET_ID - in:title type:issue"
 
-          if [ -z "$ISSUE_NUMBER" ]; then
-            echo "❌ Nenhuma issue encontrada para o ticket."
+          SEARCH_RESULT=$(curl -s -H "Authorization: bearer $GH_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{\"query\": \"query {
+              search(query: \\\"$SEARCH_QUERY\\\", type: ISSUE, first: 1) {
+                nodes {
+                  ... on Issue {
+                    id
+                    number
+                    title
+                  }
+                }
+              }
+            }\"}" https://api.github.com/graphql)
+          
+          ISSUE_ID=$(echo "$SEARCH_RESULT" | jq -r '.data.search.nodes[0].id')
+          ISSUE_NUMBER=$(echo "$SEARCH_RESULT" | jq -r '.data.search.nodes[0].number')
+          ISSUE_TITLE=$(echo "$SEARCH_RESULT" | jq -r '.data.search.nodes[0].title')
+
+          if [ "$ISSUE_ID" = "null" ] || [ -z "$ISSUE_ID" ]; then
+            echo "❌ Nenhuma issue encontrada com título iniciando em '$TICKET_ID -'"
             exit 1
           fi
 
-          echo "📌 Issue encontrada: #$ISSUE_NUMBER"
+          echo "📌 Issue encontrada: #$ISSUE_NUMBER - $ISSUE_TITLE"
 
           ISSUE_ID=$(gh api graphql -f query="
           {

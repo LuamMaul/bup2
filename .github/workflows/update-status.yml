@@ -8,9 +8,15 @@ jobs:
   atualizar_substatus:
     runs-on: ubuntu-latest
     steps:
+      - name: Autenticar com GitHub App
+        id: auth
+        uses: tibdex/github-app-token@v1
+        with:
+          app_id: ${{ secrets.GH_APP_ID }}
+          private_key: ${{ secrets.GH_APP_PRIVATE_KEY }}
       - name: Atualizar substatus no card existente
         env:
-          GH_TOKEN: ${{ secrets.GH_PAT }}
+          GH_TOKEN: ${{ steps.auth.outputs.token }}
           PROJECT_ID: PVT_kwHOA0czfM4A8xv2
           TICKET_ID: ${{ github.event.client_payload.ticket_id }}
           TICKET_SUBJECT: ${{ github.event.client_payload.ticket_subject }}

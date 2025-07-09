@@ -20,7 +20,7 @@ jobs:
           set -e
 
           TITLE="$TICKET_ID - $TICKET_SUBJECT"
-          TICKET_LINK="https://SEUDOMINIO.freshdesk.com/helpdesk/tickets/$TICKET_ID"
+          TICKET_LINK="https://esusaps.freshdesk.com/helpdesk/tickets/$TICKET_ID"
           PLANILHA_LINK="https://docs.google.com/spreadsheets/d/1i_ceiljyTheYwYe5XJLmJn2uPJHy4kQVplLpbSDmWEs/edit?gid=1998271206#gid=1998271206"
           DESCRIPTION="[Ticket]($TICKET_LINK)\n\n[Planilha de Métricas]($PLANILHA_LINK)"
 

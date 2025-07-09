@@ -58,8 +58,8 @@ jobs:
             -H "Content-Type: application/json" \
             -d "{\"query\": \"query {
               search(query: \\\"$SEARCH_QUERY\\\", type: ISSUE, first: 1) {
-                  nodes {
-                    ... on Issue {
+                nodes {
+                  ... on Issue {
                     id
                     number
                     title

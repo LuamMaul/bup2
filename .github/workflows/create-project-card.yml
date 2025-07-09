@@ -65,6 +65,13 @@ jobs:
             -d "{\"query\": \"mutation { addProjectV2ItemById(input: {projectId: \\\"$PROJECT_ID\\\", contentId: \\\"$ISSUE_ID\\\"}) { item { id } } }\"}")
 
           ITEM_ID=$(echo "$ADD_RESPONSE" | jq -r '.data.addProjectV2ItemById.item.id')
+          echo "📌 ITEM_ID: $ITEM_ID"
+
+          if [ "$ITEM_ID" == "null" ] || [ -z "$ITEM_ID" ]; then
+            echo "❌ Erro: Falha ao obter ITEM_ID. ADD_RESPONSE:"
+            echo "$ADD_RESPONSE"
+            exit 1
+          fi
 
           # ✅ Define o Status como "Inbox" explicitamente
           STATUS_FIELD_ID="PVTSSF_lAHOA0czfM4A8xv2zgwrN38"
@@ -83,8 +90,6 @@ jobs:
             -H "Authorization: bearer $GH_TOKEN" \
             -H "Content-Type: application/json" \
             -d "$MUTATION_STATUS"
-
-          ITEM_ID=$(echo "$ADD_RESPONSE" | jq -r '.data.addProjectV2ItemById.item.id')
 
           echo "🎯 Interpretando prioridade..."
 

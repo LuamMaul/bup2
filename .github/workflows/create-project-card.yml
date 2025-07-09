@@ -24,38 +24,29 @@ jobs:
           PLANILHA_LINK="https://docs.google.com/spreadsheets/d/1i_ceiljyTheYwYe5XJLmJn2uPJHy4kQVplLpbSDmWEs/edit?gid=1998271206#gid=1998271206"
           DESCRIPTION="[Ticket]($TICKET_LINK)\n\n[Planilha de Métricas]($PLANILHA_LINK)"
 
-          # Obter o repositoryId com GraphQL
+          echo "🔎 Buscando ID do repositório..."
+
           REPO_ID=$(curl -s -X POST https://api.github.com/graphql \
             -H "Authorization: bearer $GH_TOKEN" \
             -H "Content-Type: application/json" \
-            -d @- <<EOF | jq -r '.data.repository.id'
-{
-  "query": "query { repository(owner: \\\"$REPO_OWNER\\\", name: \\\"$REPO_NAME\\\") { id } }"
-}
-EOF
-)
+            -d "{\"query\": \"query { repository(owner: \\\"$REPO_OWNER\\\", name: \\\"$REPO_NAME\\\") { id } }\"}" | jq -r '.data.repository.id')
 
-          # Criar a issue real
+          echo "📦 REPO_ID: $REPO_ID"
+
+          echo "📝 Criando a issue..."
+
           ISSUE_RESPONSE=$(curl -s -X POST https://api.github.com/graphql \
             -H "Authorization: bearer $GH_TOKEN" \
             -H "Content-Type: application/json" \
-            -d @- <<EOF
-{
-  "query": "mutation { createIssue(input: {repositoryId: \\\"$REPO_ID\\\", title: \\\"$TITLE\\\", body: \\\"$DESCRIPTION\\\"}) { issue { id number url } } }"
-}
-EOF
-)
+            -d "{\"query\": \"mutation { createIssue(input: {repositoryId: \\\"$REPO_ID\\\", title: \\\"$TITLE\\\", body: \\\"$DESCRIPTION\\\"}) { issue { id number url } } }\"}")
 
-          echo "Resposta da criação da issue: $ISSUE_RESPONSE"
+          echo "📬 Resposta da criação: $ISSUE_RESPONSE"
 
           ISSUE_ID=$(echo "$ISSUE_RESPONSE" | jq -r '.data.createIssue.issue.id')
 
-          # Adicionar a issue criada ao Project v2
+          echo "📎 Adicionando issue ao projeto..."
+
           curl -s -X POST https://api.github.com/graphql \
             -H "Authorization: bearer $GH_TOKEN" \
             -H "Content-Type: application/json" \
-            -d @- <<EOF
-{
-  "query": "mutation { addProjectV2ItemById(input: {projectId: \\\"$PROJECT_ID\\\", contentId: \\\"$ISSUE_ID\\\"}) { item { id } } }"
-}
-EOF
+            -d "{\"query\": \"mutation { addProjectV2ItemById(input: {projectId: \\\"$PROJECT_ID\\\", contentId: \\\"$ISSUE_ID\\\"}) { item { id } } }\"}"

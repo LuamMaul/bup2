@@ -60,6 +60,26 @@ jobs:
 
           ITEM_ID=$(echo "$ADD_RESPONSE" | jq -r '.data.addProjectV2ItemById.item.id')
 
+          # ✅ Define o Status como "Inbox" explicitamente
+          STATUS_FIELD_ID="PVTSSF_lAHOA0czfM4A8xv2zgwrN38"
+          STATUS_OPTION_ID="f75ad846"
+
+          echo "📂 Definindo Status = Inbox..."
+
+          MUTATION_STATUS=$(jq -n \
+            --arg projectId "$PROJECT_ID" \
+            --arg itemId "$ITEM_ID" \
+            --arg fieldId "$STATUS_FIELD_ID" \
+            --arg optionId "$STATUS_OPTION_ID" \
+            '{ query: "mutation SetStatus($projectId:ID!,$itemId:ID!,$fieldId:ID!,$optionId:String!){ updateProjectV2ItemFieldValue(input:{ projectId:$projectId, itemId:$itemId, fieldId:$fieldId, value:{ singleSelectOptionId:$optionId }}){ projectV2Item{ id }}}", variables: { projectId: $projectId, itemId: $itemId, fieldId: $fieldId, optionId: $optionId } }')
+
+          curl -s -X POST https://api.github.com/graphql \
+            -H "Authorization: bearer $GH_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$MUTATION_STATUS"
+
+          ITEM_ID=$(echo "$ADD_RESPONSE" | jq -r '.data.addProjectV2ItemById.item.id')
+
           echo "🎯 Interpretando prioridade..."
 
           # MAPA: PRIORITY textual (em inglês) → ID da opção no campo do GitHub Project

@@ -59,10 +59,10 @@ jobs:
 
           # MAPA: PRIORITY (1 a 4) → ID da opção no campo do GitHub Project
           case "$PRIORITY" in
-            1) PRIORITY_OPTION_ID="57621d1e" ;;
-            2) PRIORITY_OPTION_ID="da944a9c" ;;
-            3) PRIORITY_OPTION_ID="0a877460" ;;
-            4) PRIORITY_OPTION_ID="79628723" ;;
+            "Low") PRIORITY_OPTION_ID="57621d1e" ;;
+            "Medium") PRIORITY_OPTION_ID="da944a9c" ;;
+            "High") PRIORITY_OPTION_ID="0a877460" ;;
+            "Urgent") PRIORITY_OPTION_ID="79628723" ;;
             *) PRIORITY_OPTION_ID="" ;;
           esac
 

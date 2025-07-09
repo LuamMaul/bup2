@@ -23,6 +23,7 @@ jobs:
           TICKET_LINK="https://esusaps.freshdesk.com/helpdesk/tickets/$TICKET_ID"
           PLANILHA_LINK="https://docs.google.com/spreadsheets/d/1i_ceiljyTheYwYe5XJLmJn2uPJHy4kQVplLpbSDmWEs/edit?gid=1998271206#gid=1998271206"
           DESCRIPTION="[Ticket]($TICKET_LINK)\n\n[Planilha de Métricas]($PLANILHA_LINK)"
+          PRIORITY="${{ github.event.client_payload.priority }}"
 
           echo "🔎 Buscando ID do repositório..."
 
@@ -52,7 +53,8 @@ jobs:
             -d "{\"query\": \"mutation { addProjectV2ItemById(input: {projectId: \\\"$PROJECT_ID\\\", contentId: \\\"$ISSUE_ID\\\"}) { item { id } } }\"}")
 
           ITEM_ID=$(echo "$ADD_RESPONSE" | jq -r '.data.addProjectV2ItemById.item.id')
-
+          
+          echo "📌 PRIORITY recebido e limpo: '$PRIORITY'"
           echo "🎯 Interpretando prioridade..."
 
           # MAPA: PRIORITY (1 a 4) → ID da opção no campo do GitHub Project

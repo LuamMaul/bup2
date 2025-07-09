@@ -106,7 +106,7 @@ jobs:
           fi
 
           # ID do campo Substatus no seu projeto
-          FIELD_ID="PVTSSF_lAHOA0czfM4A8xv2SUBXYZ"  # ← substitua pelo real
+          FIELD_ID="PVTSSF_lAHOA0czfM4A8xv2zgwrN44"
 
           echo "🏷️ Aplicando substatus no card..."
 

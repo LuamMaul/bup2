@@ -16,6 +16,7 @@ jobs:
           REPO_NAME: bup2
           TICKET_ID: ${{ github.event.client_payload.ticket_id }}
           TICKET_SUBJECT: ${{ github.event.client_payload.ticket_subject }}
+          TICKET_STATUS: ${{ github.event.client_payload.status }}
           PRIORITY_RAW: ${{ github.event.client_payload.priority }}
         run: |
           set -e
@@ -105,9 +106,70 @@ jobs:
               -H "Authorization: bearer $GH_TOKEN" \
               -H "Content-Type: application/json" \
               -d "$MUTATION"
+              
           else
             echo "⚠️ PRIORITY '$PRIORITY' não corresponde a nenhuma opção conhecida."
+          fi    
+          
+          STATUS_CLEAN=$(echo "$TICKET_STATUS" | xargs)
+          echo "📌 STATUS recebido e limpo: '$TICKET_STATUS'"
+
+          # 👇 MAPA: Status do Freshdesk → ID da opção no campo 'Substatus' do GitHub
+          case "$STATUS_CLEAN" in
+            "Open") OPTION_ID="6c6483d2" ;;
+            "Pending") OPTION_ID="f784b110" ;;
+            "Em andamento") OPTION_ID="756cd9fa" ;;
+            "Em desenvolvimento") OPTION_ID="7515a9f1" ;;
+            "Acesso remoto") OPTION_ID="817d0097" ;;
+            "Aguardando integração") OPTION_ID="db339eb2" ;;
+            "Aguardando nova versão") OPTION_ID="fa016d40" ;;
+            "Aguardando terceiros") OPTION_ID="12aa78ac" ;;
+            "Resolved") OPTION_ID="1b154e61" ;;
+            "Closed") OPTION_ID="d894a32b" ;;
+            *) OPTION_ID="" ;;
+          esac
+
+          if [ -z "$OPTION_ID" ]; then
+            echo "⚠️ Status '$STATUS_CLEAN' não mapeado para nenhuma opção de Substatus."
+            exit 0
           fi
+
+          # ID do campo Substatus no seu projeto
+          FIELD_ID="PVTSSF_lAHOA0czfM4A8xv2zgwrN44"
+
+          echo "🏷️ Aplicando substatus no card..."
+
+          UPDATE_MUTATION=$(jq -n \
+            --arg projectId "$PROJECT_ID" \
+            --arg itemId "$ITEM_ID" \
+            --arg fieldId "$FIELD_ID" \
+            --arg optionId "$OPTION_ID" '
+            {
+              query: "mutation UpdateField($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
+                updateProjectV2ItemFieldValue(input: {
+                  projectId: $projectId,
+                  itemId: $itemId,
+                  fieldId: $fieldId,
+                  value: { singleSelectOptionId: $optionId }
+                }) {
+                  projectV2Item { id }
+                }
+              }",
+              variables: {
+                projectId: $projectId,
+                itemId: $itemId,
+                fieldId: $fieldId,
+                optionId: $optionId
+              }
+            }')
+
+          curl -s -X POST https://api.github.com/graphql \
+            -H "Authorization: bearer $GH_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$UPDATE_MUTATION"
+
+          echo "✅ Substatus atualizado com sucesso!"
+          
           echo "🗂️ Aplicando campo 'Tipo' = 'Ticket'..."
 
           MUTATION_TIPO=$(jq -n \

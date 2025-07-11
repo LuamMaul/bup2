@@ -8,15 +8,9 @@ jobs:
   criar_issue:
     runs-on: ubuntu-latest
     steps:
-      - name: Autenticar com GitHub App
-        id: auth
-        uses: tibdex/github-app-token@v1
-        with:
-          app_id: ${{ secrets.GH_APP_ID }}
-          private_key: ${{ secrets.GH_APP_PRIVATE_KEY }}
       - name: Criar issue e adicionar ao projeto
         env:
-          GH_TOKEN: ${{ steps.auth.outputs.token }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
           PROJECT_ID: PVT_kwHOA0czfM4A8xv2
           REPO_OWNER: LuamMaul
           REPO_NAME: bup2
@@ -65,13 +59,6 @@ jobs:
             -d "{\"query\": \"mutation { addProjectV2ItemById(input: {projectId: \\\"$PROJECT_ID\\\", contentId: \\\"$ISSUE_ID\\\"}) { item { id } } }\"}")
 
           ITEM_ID=$(echo "$ADD_RESPONSE" | jq -r '.data.addProjectV2ItemById.item.id')
-          echo "📌 ITEM_ID: $ITEM_ID"
-
-          if [ "$ITEM_ID" == "null" ] || [ -z "$ITEM_ID" ]; then
-            echo "❌ Erro: Falha ao obter ITEM_ID. ADD_RESPONSE:"
-            echo "$ADD_RESPONSE"
-            exit 1
-          fi
 
           # ✅ Define o Status como "Inbox" explicitamente
           STATUS_FIELD_ID="PVTSSF_lAHOA0czfM4A8xv2zgwrN38"
@@ -90,6 +77,8 @@ jobs:
             -H "Authorization: bearer $GH_TOKEN" \
             -H "Content-Type: application/json" \
             -d "$MUTATION_STATUS"
+
+          ITEM_ID=$(echo "$ADD_RESPONSE" | jq -r '.data.addProjectV2ItemById.item.id')
 
           echo "🎯 Interpretando prioridade..."
 
